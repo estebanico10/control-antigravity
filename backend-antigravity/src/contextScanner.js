@@ -1,15 +1,40 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
+
+let cachedContext = null;
+let lastScanTime = 0;
 
 /**
- * Scans local Antigravity Brain folder and active window titles to determine
- * exact project name, conversation context, and AI messages.
+ * Reads only the tail (last N bytes) of a file efficiently without reading the whole file into memory.
+ */
+function readTailText(filePath, maxBytes = 16384) {
+  try {
+    const stat = fs.statSync(filePath);
+    const size = stat.size;
+    if (size === 0) return '';
+
+    const bytesToRead = Math.min(size, maxBytes);
+    const buffer = Buffer.alloc(bytesToRead);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buffer, 0, bytesToRead, size - bytesToRead);
+    fs.closeSync(fd);
+    return buffer.toString('utf-8');
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Scans local Antigravity Brain folder and active window titles efficiently.
+ * Cached for 3 seconds to ensure 0% CPU freeze and ultra fast responses.
  */
 function scanAntigravityContext() {
+  const now = Date.now();
+  if (cachedContext && (now - lastScanTime) < 3000) {
+    return cachedContext;
+  }
+
   const appDataDir = path.join(os.homedir(), '.gemini', 'antigravity-ide');
   const brainDir = path.join(appDataDir, 'brain');
 
@@ -20,23 +45,24 @@ function scanAntigravityContext() {
   let latestAIMessage = '';
   let subagentFinishedNotice = false;
   let activeProjectTitle = 'Antigravity IDE';
-  let contextType = 'IDLE'; // 'PLAN_APPROVAL_NEEDED' | 'PROCEED_REQUIRED' | 'ERROR_DETECTED' | 'IDLE' | 'WORKING'
+  let contextType = 'IDLE';
 
   try {
     if (fs.existsSync(brainDir)) {
       const convs = fs.readdirSync(brainDir);
       
       // Find most recently modified conversation folder
-      convs.forEach(convId => {
+      for (const convId of convs) {
+        if (convId === 'scratch' || convId.startsWith('.')) continue;
         const folderPath = path.join(brainDir, convId);
-        if (fs.statSync(folderPath).isDirectory() && convId !== 'scratch') {
+        try {
           const stat = fs.statSync(folderPath);
-          if (stat.mtimeMs > latestMtime) {
+          if (stat.isDirectory() && stat.mtimeMs > latestMtime) {
             latestMtime = stat.mtimeMs;
             activeConvId = convId;
           }
-        }
-      });
+        } catch (e) {}
+      }
 
       if (activeConvId) {
         const activePath = path.join(brainDir, activeConvId);
@@ -44,35 +70,42 @@ function scanAntigravityContext() {
         // 1. Read Implementation Plan
         const planPath = path.join(activePath, 'implementation_plan.md');
         if (fs.existsSync(planPath)) {
-          implementationPlanText = fs.readFileSync(planPath, 'utf-8');
-          contextType = 'PLAN_APPROVAL_NEEDED';
+          try {
+            implementationPlanText = fs.readFileSync(planPath, 'utf-8');
+            contextType = 'PLAN_APPROVAL_NEEDED';
+          } catch (e) {}
         }
 
         // 2. Read Walkthrough
         const walkthroughPath = path.join(activePath, 'walkthrough.md');
         if (fs.existsSync(walkthroughPath)) {
-          walkthroughText = fs.readFileSync(walkthroughPath, 'utf-8');
+          try {
+            walkthroughText = fs.readFileSync(walkthroughPath, 'utf-8');
+          } catch (e) {}
         }
 
         // 3. Scan Subagent Tasks in .system_generated/tasks
         const tasksDir = path.join(activePath, '.system_generated', 'tasks');
         if (fs.existsSync(tasksDir)) {
-          const taskFiles = fs.readdirSync(tasksDir);
-          const now = Date.now();
-          taskFiles.forEach(tf => {
-            const tStat = fs.statSync(path.join(tasksDir, tf));
-            if ((now - tStat.mtimeMs) < 30000) {
-              subagentFinishedNotice = true;
+          try {
+            const taskFiles = fs.readdirSync(tasksDir);
+            for (const tf of taskFiles) {
+              const tStat = fs.statSync(path.join(tasksDir, tf));
+              if ((now - tStat.mtimeMs) < 30000) {
+                subagentFinishedNotice = true;
+                break;
+              }
             }
-          });
+          } catch (e) {}
         }
 
-        // 4. Extract Latest AI Message from Logs
+        // 4. Extract Latest AI Message from Logs using Tail Read (Fast & Memory Safe)
         const logsDir = path.join(activePath, '.system_generated', 'logs');
-        if (fs.existsSync(logsDir)) {
-          const transcriptPath = path.join(logsDir, 'transcript.jsonl');
-          if (fs.existsSync(transcriptPath)) {
-            const lines = fs.readFileSync(transcriptPath, 'utf-8').trim().split('\n');
+        const transcriptPath = path.join(logsDir, 'transcript.jsonl');
+        if (fs.existsSync(transcriptPath)) {
+          const tailContent = readTailText(transcriptPath, 32768);
+          if (tailContent) {
+            const lines = tailContent.trim().split('\n');
             for (let i = lines.length - 1; i >= 0; i--) {
               try {
                 const entry = JSON.parse(lines[i]);
@@ -94,7 +127,7 @@ function scanAntigravityContext() {
     contextType = subagentFinishedNotice ? 'PROCEED_REQUIRED' : 'IDLE';
   }
 
-  return {
+  cachedContext = {
     active_conversation_id: activeConvId,
     active_project_title: activeProjectTitle,
     context_type: contextType,
@@ -104,6 +137,9 @@ function scanAntigravityContext() {
     latest_ai_message: latestAIMessage || 'Antigravity listo en espera de comandos.',
     updated_at: new Date().toISOString()
   };
+
+  lastScanTime = now;
+  return cachedContext;
 }
 
 module.exports = {
