@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node --watch src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "tunnel": "npx localtunnel --port 3001"
   },
   "keywords": [],
   "author": "Estebanico10",
