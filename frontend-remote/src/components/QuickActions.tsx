@@ -91,7 +91,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
               {autoApprove ? 'Auto-Aprobación ACTIVA' : 'Confirmación manual activa'}
             </span>
           </div>
-        </button>
+        </div>
       </div>
     </div>
   );
