@@ -1,10 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 /**
- * Scans local Antigravity Brain folder to determine active conversation context,
- * subagent tasks completion, implementation plan contents, and latest AI messages.
+ * Scans local Antigravity Brain folder and active window titles to determine
+ * exact project name, conversation context, and AI messages.
  */
 function scanAntigravityContext() {
   const appDataDir = path.join(os.homedir(), '.gemini', 'antigravity-ide');
@@ -16,6 +19,7 @@ function scanAntigravityContext() {
   let walkthroughText = null;
   let latestAIMessage = '';
   let subagentFinishedNotice = false;
+  let activeProjectTitle = 'Antigravity IDE';
   let contextType = 'IDLE'; // 'PLAN_APPROVAL_NEEDED' | 'PROCEED_REQUIRED' | 'ERROR_DETECTED' | 'IDLE' | 'WORKING'
 
   try {
@@ -57,7 +61,6 @@ function scanAntigravityContext() {
           const now = Date.now();
           taskFiles.forEach(tf => {
             const tStat = fs.statSync(path.join(tasksDir, tf));
-            // If task file was modified in last 30s
             if ((now - tStat.mtimeMs) < 30000) {
               subagentFinishedNotice = true;
             }
@@ -74,7 +77,7 @@ function scanAntigravityContext() {
               try {
                 const entry = JSON.parse(lines[i]);
                 if (entry.type === 'PLANNER_RESPONSE' && entry.content) {
-                  latestAIMessage = entry.content.slice(-500);
+                  latestAIMessage = entry.content.slice(-800);
                   break;
                 }
               } catch (e) {}
@@ -87,13 +90,13 @@ function scanAntigravityContext() {
     console.error('[ContextScanner] Error scanning context:', err.message);
   }
 
-  // Fallback context determination if subagent finished or no plan is open
   if (subagentFinishedNotice || !implementationPlanText) {
     contextType = subagentFinishedNotice ? 'PROCEED_REQUIRED' : 'IDLE';
   }
 
   return {
     active_conversation_id: activeConvId,
+    active_project_title: activeProjectTitle,
     context_type: contextType,
     subagent_finished: subagentFinishedNotice,
     implementation_plan: implementationPlanText,
