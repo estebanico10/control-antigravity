@@ -1,6 +1,7 @@
-import React from 'react';
-import { Cpu, Settings, LogOut, Radio, CheckCircle2, AlertTriangle, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Cpu, Settings, LogOut, Radio, CheckCircle2, AlertTriangle, Zap, Bell, BellOff } from 'lucide-react';
 import { EstadoActual } from '../types';
+import { requestNotificationPermission, playNotificationSound, triggerHapticVibration } from '../lib/notificationHelper';
 
 interface StatusHeaderProps {
   estado: EstadoActual;
@@ -17,6 +18,17 @@ export const StatusHeader: React.FC<StatusHeaderProps> = ({
   onOpenSettings,
   onLogout,
 }) => {
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  );
+
+  const handleToggleNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setNotificationsEnabled(granted);
+    playNotificationSound();
+    triggerHapticVibration();
+  };
+
   const getStatusBadge = () => {
     if (estado === 'requiere_confirmacion') {
       return (
@@ -75,6 +87,18 @@ export const StatusHeader: React.FC<StatusHeaderProps> = ({
 
       <div className="flex items-center gap-3">
         {getStatusBadge()}
+
+        <button
+          onClick={handleToggleNotifications}
+          className={`p-2 rounded-xl border transition ${
+            notificationsEnabled
+              ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+              : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white'
+          }`}
+          title={notificationsEnabled ? 'Notificaciones Push & Sonido Activas' : 'Activar Notificaciones Push & Tono Sonoro'}
+        >
+          {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+        </button>
 
         <button
           onClick={onOpenSettings}

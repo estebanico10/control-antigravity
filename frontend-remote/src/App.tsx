@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabaseClient, getSavedConfig } from './lib/supabase';
 import { EstadoActual, ControlEstado, TelemetryData, AntigravityContext } from './types';
 import { LoginModal } from './components/LoginModal';
@@ -15,6 +15,7 @@ import { PromptInputBar } from './components/PromptInputBar';
 import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 import { BottomNavBar, TabType } from './components/BottomNavBar';
 import { NetworkAssistantAlert } from './components/NetworkAssistantAlert';
+import { sendSystemNotification } from './lib/notificationHelper';
 import { Sparkles, Terminal } from 'lucide-react';
 
 export function App() {
@@ -30,6 +31,8 @@ export function App() {
   const [isPlanViewerOpen, setIsPlanViewerOpen] = useState<boolean>(false);
   const [lastActionStatus, setLastActionStatus] = useState<string | null>(null);
 
+  const prevEstadoRef = useRef<EstadoActual>('inactivo');
+
   // Auth Check
   useEffect(() => {
     const auth = localStorage.getItem('antigravity_authenticated');
@@ -39,6 +42,17 @@ export function App() {
   }, []);
 
   const config = getSavedConfig();
+
+  // Trigger sound/vibration/push when state requires confirmation
+  useEffect(() => {
+    if (estado === 'requiere_confirmacion' && prevEstadoRef.current !== 'requiere_confirmacion') {
+      sendSystemNotification(
+        '🚀 Antigravity ha Finalizado',
+        'El agente o subagente completó la tarea y requiere tu confirmación.'
+      );
+    }
+    prevEstadoRef.current = estado;
+  }, [estado]);
 
   // Local HTTP API Fallback Action
   const sendLocalApiAction = useCallback(async (action?: EstadoActual, nextAutoApprove?: boolean) => {
@@ -81,7 +95,7 @@ export function App() {
       });
 
       const channel = supabase
-        .channel('antigravity_remote_v2')
+        .channel('antigravity_remote_v4')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'control_estado' }, (payload) => {
           const newData = payload.new as ControlEstado;
           if (newData) {
@@ -287,7 +301,7 @@ export function App() {
 
         <footer className="text-center text-xs text-slate-500 pt-6 border-t border-slate-800/80 flex items-center justify-between mt-8">
           <span className="flex items-center gap-1">
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v3.5
+            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v4.0
           </span>
           <span>Desarrollado para @Estebanico10</span>
         </footer>
