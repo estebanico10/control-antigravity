@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Terminal, GitCommit, Database, CheckSquare, Brain, Palette, Bug, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Terminal, GitCommit, CheckSquare, Brain, Palette, Bug, ChevronDown, ChevronUp } from 'lucide-react';
 import { getSavedConfig } from '../lib/supabase';
 
 interface PredefinedPromptsProps {
