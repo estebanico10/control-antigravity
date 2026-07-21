@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
 const { focusAntigravityWindow, confirmAction, selectGitHubAccount, gitCommitAndPush } = require('./windowManager');
 const { getAntigravityTelemetry } = require('./telemetryScanner');
@@ -13,7 +14,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Allows base64 image payloads
+app.use(express.json({ limit: '50mb' }));
 
 // In-Memory State Backup (standalone local usage)
 let localState = {
@@ -38,6 +39,21 @@ if (SUPABASE_URL && SUPABASE_KEY) {
   }
 } else {
   console.log('[Supabase] Running in local standalone mode.');
+}
+
+/**
+ * Get Local IPv4 Address
+ */
+function getLocalIpAddress() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
 }
 
 /**
@@ -190,9 +206,13 @@ app.post('/api/action', async (req, res) => {
   res.json({ success: true, state: localState });
 });
 
-app.listen(PORT, () => {
+const localIp = getLocalIpAddress();
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v2.5 running on http://localhost:${PORT}`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v4.5 running!`);
   console.log(`🔑 Default Login User: Estebanico10`);
+  console.log(`----------------------------------------------------`);
+  console.log(`📱 IP PARA TU CELULAR (Wi-Fi Local): http://${localIp}:${PORT}`);
   console.log(`====================================================`);
 });
