@@ -10,7 +10,7 @@ const os = require('os');
  * and returns a JPEG base64 string.
  */
 async function captureAntigravityScreen() {
-  const tempImgPath = path.join(os.tmpdir(), `antigravity_screen_${Date.now()}.jpg`);
+  const tempImgPath = path.join(os.tmpdir(), `antigravity_screen_${Date.now()}.jpg`).replace(/\\/g, '/');
   
   const psScript = `
     Add-Type -AssemblyName System.Windows.Forms;
@@ -36,7 +36,7 @@ async function captureAntigravityScreen() {
     $graphics = [System.Drawing.Graphics]::FromImage($bmp);
     $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size);
     
-    $bmp.Save("${tempImgPath.replace(/\\/g, '/')}", [System.Drawing.Imaging.ImageFormat]::Jpeg);
+    $bmp.Save('${tempImgPath}', [System.Drawing.Imaging.ImageFormat]::Jpeg);
     $graphics.Dispose();
     $bmp.Dispose();
     Write-Output "SCREENSHOT_SAVED";

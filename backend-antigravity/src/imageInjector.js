@@ -15,7 +15,7 @@ async function injectImageToAntigravity(base64ImageStr) {
 
   // Remove header data URL if present
   const base64Data = base64ImageStr.replace(/^data:image\/\w+;base64,/, '');
-  const tempImgPath = path.join(os.tmpdir(), `remote_upload_${Date.now()}.jpg`);
+  const tempImgPath = path.join(os.tmpdir(), `remote_upload_${Date.now()}.jpg`).replace(/\\/g, '/');
 
   try {
     fs.writeFileSync(tempImgPath, Buffer.from(base64Data, 'base64'));
@@ -38,7 +38,7 @@ async function injectImageToAntigravity(base64ImageStr) {
         $wshell.AppActivate($processes[0].Id);
         Start-Sleep -Milliseconds 250;
 
-        $img = [System.Drawing.Image]::FromFile("${tempImgPath.replace(/\\/g, '/')}");
+        $img = [System.Drawing.Image]::FromFile('${tempImgPath}');
         [System.Windows.Forms.Clipboard]::SetImage($img);
         Start-Sleep -Milliseconds 150;
         [System.Windows.Forms.SendKeys]::SendWait("^v");
