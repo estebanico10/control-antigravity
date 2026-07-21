@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const os = require('os');
-const localtunnel = require('localtunnel');
+const qrcode = require('qrcode-terminal');
 const { createClient } = require('@supabase/supabase-js');
 const { focusAntigravityWindow, confirmAction, selectGitHubAccount, gitCommitAndPush } = require('./windowManager');
 const { getAntigravityTelemetry } = require('./telemetryScanner');
@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Serve frontend static build directly to avoid HTTPS Mixed Content block on mobile devices
+// Serve frontend static build directly for standalone local PWA usage
 const frontendDist = path.join(__dirname, '../../frontend-remote/dist');
 app.use(express.static(frontendDist));
 
@@ -220,13 +220,15 @@ app.get('*', (req, res) => {
 });
 
 const localIp = getLocalIpAddress();
+const mobileAppUrl = `http://${localIp}:${PORT}`;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v6.0 running!`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v7.0 running!`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`----------------------------------------------------`);
-  console.log(`📲 ABRE ESTE ENLACE DIRECTO EN TU CELULAR (Wi-Fi):`);
-  console.log(`👉 http://${localIp}:${PORT}`);
+  console.log(`📲 ESCANEA ESTE CÓDIGO QR CON LA CÁMARA DE TU CELULAR:`);
+  qrcode.generate(mobileAppUrl, { small: true });
+  console.log(`👉 ENLACE DIRECTO: ${mobileAppUrl}`);
   console.log(`====================================================`);
 });
