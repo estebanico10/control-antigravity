@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitCommit, Monitor, CheckCircle, Zap } from 'lucide-react';
+import { GitCommit, Monitor, CheckCircle, Zap, MousePointerClick } from 'lucide-react';
 
 interface QuickActionsProps {
   autoApprove: boolean;
@@ -26,17 +26,17 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Manual Confirm Button */}
+        {/* Manual Confirm & Proceed Button */}
         <button
           onClick={onSendConfirm}
           className="p-4 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-left transition group flex flex-col justify-between"
         >
           <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center mb-3 shadow-md group-hover:scale-105 transition">
-            <CheckCircle className="w-5 h-5" />
+            <MousePointerClick className="w-5 h-5" />
           </div>
           <div>
-            <span className="block text-sm font-bold text-white">Enviar Enter / Aceptar</span>
-            <span className="block text-xs text-slate-400 mt-0.5">Confirma acción remota</span>
+            <span className="block text-sm font-bold text-white">Clic en Proceed / Aceptar</span>
+            <span className="block text-xs text-slate-400 mt-0.5">Enfoca proyecto y presiona Proceed</span>
           </div>
         </button>
 
@@ -63,8 +63,8 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
             <Monitor className="w-5 h-5" />
           </div>
           <div>
-            <span className="block text-sm font-bold text-white">Enfocar Antigravity</span>
-            <span className="block text-xs text-slate-400 mt-0.5">Trae app al frente en PC</span>
+            <span className="block text-sm font-bold text-white">Enfocar Proyecto IDE</span>
+            <span className="block text-xs text-slate-400 mt-0.5">Trae ventana de trabajo al frente</span>
           </div>
         </button>
 
@@ -88,7 +88,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
           <div>
             <span className="block text-sm font-bold text-white">Modo Auto-Aprobar</span>
             <span className="block text-xs text-slate-400 mt-0.5">
-              {autoApprove ? 'Aprobación automática ACTIVA' : 'Confirmación manual activa'}
+              {autoApprove ? 'Auto-Aprobación ACTIVA' : 'Confirmación manual activa'}
             </span>
           </div>
         </div>
