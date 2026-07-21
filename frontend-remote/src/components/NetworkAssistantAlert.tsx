@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, ExternalLink, Wifi } from 'lucide-react';
+import { Settings, ExternalLink, Wifi, AlertCircle } from 'lucide-react';
 
 interface NetworkAssistantAlertProps {
   isConnected: boolean;
@@ -23,8 +23,13 @@ export const NetworkAssistantAlert: React.FC<NetworkAssistantAlertProps> = ({
             📱 Conectar Celular con tu PC
           </h4>
           <p className="text-xs text-slate-300 leading-relaxed mb-3">
-            Para controlar tu PC desde el celular, ingresa la IP de tu computadora en la configuración: <code className="bg-slate-900 px-2 py-0.5 rounded text-amber-300 font-mono font-bold">http://192.168.1.18:3001</code> o vincula Supabase para conectarte desde datos móviles.
+            Para abrir en tu celular por Wi-Fi, debes escribir obligatoriamente <code className="bg-slate-900 px-2 py-0.5 rounded text-amber-300 font-mono font-bold">http://192.168.1.18:3001</code> con <span className="underline decoration-amber-400 font-bold">http://</span> al inicio (si no escribes <span className="font-mono text-amber-300">http://</span> el celular fuerza https y falla).
           </p>
+
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-3 flex items-center gap-2 text-xs text-amber-300">
+            <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Para conectar 24/7 sin escribir IPs ni estar en la misma red Wi-Fi, configura Supabase.</span>
+          </div>
 
           <div className="flex flex-wrap gap-2">
             <button
@@ -32,7 +37,7 @@ export const NetworkAssistantAlert: React.FC<NetworkAssistantAlertProps> = ({
               className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-md shadow-amber-500/20 transition"
             >
               <Settings className="w-4 h-4" />
-              <span>Ingresar IP PC / Supabase</span>
+              <span>Configurar Supabase 24/7</span>
             </button>
             <a
               href="https://supabase.com"
