@@ -3,6 +3,16 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 
 /**
+ * Runs a PowerShell script using UTF-16LE Base64 encoding.
+ */
+async function runPowerShellScript(scriptText) {
+  const encodedScript = Buffer.from(scriptText, 'utf16le').toString('base64');
+  const command = `powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
+  const { stdout } = await execPromise(command);
+  return stdout.trim();
+}
+
+/**
  * Focuses the target Antigravity IDE project window and injects user prompt text
  * into the chat box using PowerShell Clipboard paste (SetText + Ctrl+V + Enter).
  */
@@ -11,14 +21,10 @@ async function injectTextToAntigravity(textToInject) {
     return { success: false, error: 'Text string required' };
   }
 
-  // Escape text for PowerShell string
-  const safeText = textToInject.replace(/"/g, '`"');
-
   const psScript = `
     Add-Type -AssemblyName System.Windows.Forms;
     $wshell = New-Object -ComObject wscript.shell;
 
-    # Target work project window excluding Control Antigravity daemon window
     $processes = Get-Process | Where-Object { 
       ($_.MainWindowTitle -like '*Antigravity*' -or $_.MainWindowTitle -like '*Visual Studio Code*' -or $_.MainWindowTitle -like '*Cursor*') -and 
       ($_.MainWindowTitle -notlike '*Control Antigravity*')
@@ -32,12 +38,11 @@ async function injectTextToAntigravity(textToInject) {
       $wshell.AppActivate($processes[0].Id);
       Start-Sleep -Milliseconds 250;
 
-      # Set text to Clipboard and paste with Ctrl+V
-      [System.Windows.Forms.Clipboard]::SetText("${safeText}");
+      [System.Windows.Forms.Clipboard]::SetText('${textToInject.replace(/'/g, "''")}');
       Start-Sleep -Milliseconds 100;
-      [System.Windows.Forms.SendKeys]::SendWait("^v");
+      [System.Windows.Forms.SendKeys]::SendWait('^v');
       Start-Sleep -Milliseconds 150;
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}");
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}');
 
       Write-Output "TEXT_INJECTED_SUCCESSFULLY";
     } else {
@@ -46,9 +51,8 @@ async function injectTextToAntigravity(textToInject) {
   `;
 
   try {
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
-    const { stdout } = await execPromise(command);
-    console.log('[TextInjector]', stdout.trim());
+    const stdout = await runPowerShellScript(psScript);
+    console.log('[TextInjector]', stdout);
     return { success: stdout.includes('TEXT_INJECTED_SUCCESSFULLY') };
   } catch (error) {
     console.error('[TextInjector] Error injecting text:', error.message);

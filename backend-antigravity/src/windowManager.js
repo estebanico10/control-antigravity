@@ -3,6 +3,19 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 
 /**
+ * Runs a PowerShell script using UTF-16LE Base64 encoding to prevent all command line string escaping errors.
+ */
+async function runPowerShellScript(scriptText) {
+  const encodedScript = Buffer.from(scriptText, 'utf16le').toString('base64');
+  const command = `powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
+  const { stdout, stderr } = await execPromise(command);
+  if (stderr && stderr.trim()) {
+    console.warn('[PowerShell Warning]', stderr.trim());
+  }
+  return stdout.trim();
+}
+
+/**
  * Focuses the correct active Antigravity IDE project window, excluding the daemon window itself.
  */
 async function focusAntigravityWindow() {
@@ -27,9 +40,8 @@ async function focusAntigravityWindow() {
   `;
 
   try {
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
-    const { stdout } = await execPromise(command);
-    console.log('[WindowManager]', stdout.trim());
+    const stdout = await runPowerShellScript(psScript);
+    console.log('[WindowManager]', stdout);
     return stdout.includes('FOCUSED');
   } catch (error) {
     console.error('[WindowManager] Error focusing window:', error.message);
@@ -42,7 +54,7 @@ async function focusAntigravityWindow() {
  * in the VS Code / Antigravity modal and clicks the 'Continue' button.
  */
 async function selectGitHubAccount(accountName = 'estebanico10') {
-  const safeAccountName = accountName.replace(/"/g, '');
+  const safeAccountName = accountName.replace(/'/g, '');
 
   const psScript = `
     Add-Type -AssemblyName System.Windows.Forms;
@@ -69,7 +81,7 @@ async function selectGitHubAccount(accountName = 'estebanico10') {
         $rootElem = [System.Windows.Automation.AutomationElement]::FromHandle($targetProc.MainWindowHandle);
         if ($rootElem) {
           # 1. Search account element matching accountName
-          $accCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "${safeAccountName}");
+          $accCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '${safeAccountName}');
           $accElem = $rootElem.FindFirst([System.Windows.Automation.TreeScope]::Subtree, $accCond);
 
           if ($accElem) {
@@ -82,7 +94,7 @@ async function selectGitHubAccount(accountName = 'estebanico10') {
           Start-Sleep -Milliseconds 150;
 
           # 2. Search & click 'Continue' button
-          $contCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Continue");
+          $contCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Continue');
           $contBtn = $rootElem.FindFirst([System.Windows.Automation.TreeScope]::Subtree, $contCond);
 
           if ($contBtn) {
@@ -96,16 +108,15 @@ async function selectGitHubAccount(accountName = 'estebanico10') {
       }
 
       # Guaranteed Fallback: Send ENTER
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}");
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}');
       Write-Output "ACCOUNT_SELECTION_EXECUTED";
     }
   `;
 
   try {
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
-    const { stdout } = await execPromise(command);
-    console.log('[WindowManager]', stdout.trim());
-    return { success: true, message: stdout.trim() };
+    const stdout = await runPowerShellScript(psScript);
+    console.log('[WindowManager]', stdout);
+    return { success: true, message: stdout };
   } catch (error) {
     console.error('[WindowManager] Error selecting account:', error.message);
     return { success: false, error: error.message };
@@ -135,17 +146,17 @@ async function confirmAction() {
     if ($processes) {
       $targetProc = $processes[0];
       $wshell.AppActivate($targetProc.Id);
-      Start-Sleep -Milliseconds 200;
+      Start-Sleep -Milliseconds 250;
 
       $clickedByUI = $false;
       try {
         $rootElem = [System.Windows.Automation.AutomationElement]::FromHandle($targetProc.MainWindowHandle);
         if ($rootElem) {
           $condition = New-Object System.Windows.Automation.OrCondition(
-            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Proceed")),
-            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Allow")),
-            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Proceder")),
-            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Aceptar"))
+            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Proceed')),
+            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Allow')),
+            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Proceder')),
+            (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Aceptar'))
           );
 
           $buttons = $rootElem.FindAll([System.Windows.Automation.TreeScope]::Subtree, $condition);
@@ -165,9 +176,9 @@ async function confirmAction() {
         }
       } catch {}
 
-      [System.Windows.Forms.SendKeys]::SendWait("^{ENTER}");
-      Start-Sleep -Milliseconds 100;
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}");
+      [System.Windows.Forms.SendKeys]::SendWait('^{ENTER}');
+      Start-Sleep -Milliseconds 150;
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}');
 
       if ($clickedByUI) {
         Write-Output "CONFIRMED_VIA_UI_AND_SHORTCUT";
@@ -175,16 +186,15 @@ async function confirmAction() {
         Write-Output "CONFIRMED_VIA_KEYBOARD_SHORTCUT";
       }
     } else {
-      [System.Windows.Forms.SendKeys]::SendWait("^{ENTER}");
-      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}");
+      [System.Windows.Forms.SendKeys]::SendWait('^{ENTER}');
+      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}');
       Write-Output "CONFIRMED_FALLBACK_SHORTCUT";
     }
   `;
 
   try {
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
-    const { stdout } = await execPromise(command);
-    console.log('[WindowManager]', stdout.trim());
+    const stdout = await runPowerShellScript(psScript);
+    console.log('[WindowManager]', stdout);
     return true;
   } catch (error) {
     console.error('[WindowManager] Error confirming action:', error.message);

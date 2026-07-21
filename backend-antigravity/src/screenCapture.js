@@ -6,6 +6,16 @@ const path = require('path');
 const os = require('os');
 
 /**
+ * Runs a PowerShell script using UTF-16LE Base64 encoding.
+ */
+async function runPowerShellScript(scriptText) {
+  const encodedScript = Buffer.from(scriptText, 'utf16le').toString('base64');
+  const command = `powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
+  const { stdout } = await execPromise(command);
+  return stdout.trim();
+}
+
+/**
  * Captures a screenshot of the active Antigravity IDE window (or primary screen fallback)
  * and returns a JPEG base64 string.
  */
@@ -43,8 +53,7 @@ async function captureAntigravityScreen() {
   `;
 
   try {
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
-    await execPromise(command);
+    await runPowerShellScript(psScript);
 
     if (fs.existsSync(tempImgPath)) {
       const imgBuffer = fs.readFileSync(tempImgPath);

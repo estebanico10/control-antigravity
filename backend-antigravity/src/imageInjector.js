@@ -6,6 +6,16 @@ const path = require('path');
 const os = require('os');
 
 /**
+ * Runs a PowerShell script using UTF-16LE Base64 encoding.
+ */
+async function runPowerShellScript(scriptText) {
+  const encodedScript = Buffer.from(scriptText, 'utf16le').toString('base64');
+  const command = `powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
+  const { stdout } = await execPromise(command);
+  return stdout.trim();
+}
+
+/**
  * Places a JPG/PNG image buffer into the Windows Clipboard and pastes it (Ctrl+V) into Antigravity IDE.
  */
 async function injectImageToAntigravity(base64ImageStr) {
@@ -41,7 +51,7 @@ async function injectImageToAntigravity(base64ImageStr) {
         $img = [System.Drawing.Image]::FromFile('${tempImgPath}');
         [System.Windows.Forms.Clipboard]::SetImage($img);
         Start-Sleep -Milliseconds 150;
-        [System.Windows.Forms.SendKeys]::SendWait("^v");
+        [System.Windows.Forms.SendKeys]::SendWait('^v');
         $img.Dispose();
         Write-Output "IMAGE_PASTED_SUCCESSFULLY";
       } else {
@@ -49,8 +59,7 @@ async function injectImageToAntigravity(base64ImageStr) {
       }
     `;
 
-    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
-    const { stdout } = await execPromise(command);
+    const stdout = await runPowerShellScript(psScript);
     
     // Clean up temporary image file after 2s
     setTimeout(() => {
