@@ -8,15 +8,13 @@ const execPromise = util.promisify(exec);
 async function focusAntigravityWindow() {
   const psScript = `
     $wshell = New-Object -ComObject wscript.shell;
-    # Get all IDE windows excluding the Control Antigravity daemon window
     $processes = Get-Process | Where-Object { 
       ($_.MainWindowTitle -like '*Antigravity*' -or $_.MainWindowTitle -like '*Visual Studio Code*' -or $_.MainWindowTitle -like '*Cursor*') -and 
       ($_.MainWindowTitle -notlike '*Control Antigravity*')
     };
 
     if (-not $processes) {
-      # Fallback: take any process if no excluded ones match
-      $processes = Get-Process | Where-Object { $_.MainWindowTitle -like '*Antigravity*' -and $_.MainWindowTitle -notlike '*backend-antigravity*' };
+      $processes = Get-Process | Where-Object { $_.MainWindowTitle -like '*Antigravity*' };
     }
 
     if ($processes) {
@@ -40,18 +38,18 @@ async function focusAntigravityWindow() {
 }
 
 /**
- * Confirms an action by focusing the target IDE window, searching for the 'Proceed' UI button,
- * and performing a UI Automation invocation, mouse click, and keyboard shortcut (Ctrl+Enter / Enter).
+ * Selects a specific GitHub account ('estebanico10', 'iecejerusalen-eng', 'naomyalvarado2026')
+ * in the VS Code / Antigravity modal and clicks the 'Continue' button.
  */
-async function confirmAction() {
+async function selectGitHubAccount(accountName = 'estebanico10') {
+  const safeAccountName = accountName.replace(/"/g, '');
+
   const psScript = `
     Add-Type -AssemblyName System.Windows.Forms;
     Add-Type -AssemblyName UIAutomationClient;
     Add-Type -AssemblyName UIAutomationTypes;
 
     $wshell = New-Object -ComObject wscript.shell;
-    
-    # 1. Target the work project window, ignoring Control Antigravity daemon window
     $processes = Get-Process | Where-Object { 
       ($_.MainWindowTitle -like '*Antigravity*' -or $_.MainWindowTitle -like '*Visual Studio Code*' -or $_.MainWindowTitle -like '*Cursor*') -and 
       ($_.MainWindowTitle -notlike '*Control Antigravity*')
@@ -66,7 +64,79 @@ async function confirmAction() {
       $wshell.AppActivate($targetProc.Id);
       Start-Sleep -Milliseconds 200;
 
-      # 2. Search for UI Automation Element ('Proceed', 'Allow', 'Proceder', 'Aceptar')
+      $selected = $false;
+      try {
+        $rootElem = [System.Windows.Automation.AutomationElement]::FromHandle($targetProc.MainWindowHandle);
+        if ($rootElem) {
+          # 1. Search account element matching accountName
+          $accCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "${safeAccountName}");
+          $accElem = $rootElem.FindFirst([System.Windows.Automation.TreeScope]::Subtree, $accCond);
+
+          if ($accElem) {
+            $invokeAcc = $accElem.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern);
+            if ($invokeAcc) { $invokeAcc.Invoke(); }
+            $selected = $true;
+            Write-Output "SELECTED_ACCOUNT: ${safeAccountName}";
+          }
+
+          Start-Sleep -Milliseconds 150;
+
+          # 2. Search & click 'Continue' button
+          $contCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, "Continue");
+          $contBtn = $rootElem.FindFirst([System.Windows.Automation.TreeScope]::Subtree, $contCond);
+
+          if ($contBtn) {
+            $invokeCont = $contBtn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern);
+            if ($invokeCont) { $invokeCont.Invoke(); }
+            Write-Output "CLICKED_CONTINUE_BUTTON";
+          }
+        }
+      } catch {
+        Write-Output "UI_AUTOMATION_ERR: $($_.Exception.Message)";
+      }
+
+      # Guaranteed Fallback: Send ENTER
+      [System.Windows.Forms.SendKeys]::SendWait("{ENTER}");
+      Write-Output "ACCOUNT_SELECTION_EXECUTED";
+    }
+  `;
+
+  try {
+    const command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\n/g, ' ')}"`;
+    const { stdout } = await execPromise(command);
+    console.log('[WindowManager]', stdout.trim());
+    return { success: true, message: stdout.trim() };
+  } catch (error) {
+    console.error('[WindowManager] Error selecting account:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Confirms an action by focusing the target IDE window, searching for the 'Proceed' UI button,
+ * and performing a UI Automation invocation, mouse click, and keyboard shortcut (Ctrl+Enter / Enter).
+ */
+async function confirmAction() {
+  const psScript = `
+    Add-Type -AssemblyName System.Windows.Forms;
+    Add-Type -AssemblyName UIAutomationClient;
+    Add-Type -AssemblyName UIAutomationTypes;
+
+    $wshell = New-Object -ComObject wscript.shell;
+    $processes = Get-Process | Where-Object { 
+      ($_.MainWindowTitle -like '*Antigravity*' -or $_.MainWindowTitle -like '*Visual Studio Code*' -or $_.MainWindowTitle -like '*Cursor*') -and 
+      ($_.MainWindowTitle -notlike '*Control Antigravity*')
+    };
+
+    if (-not $processes) {
+      $processes = Get-Process | Where-Object { $_.MainWindowTitle -like '*Antigravity*' };
+    }
+
+    if ($processes) {
+      $targetProc = $processes[0];
+      $wshell.AppActivate($targetProc.Id);
+      Start-Sleep -Milliseconds 200;
+
       $clickedByUI = $false;
       try {
         $rootElem = [System.Windows.Automation.AutomationElement]::FromHandle($targetProc.MainWindowHandle);
@@ -93,11 +163,8 @@ async function confirmAction() {
             }
           }
         }
-      } catch {
-        Write-Output "UI_AUTOMATION_SEARCH_ERR: $($_.Exception.Message)";
-      }
+      } catch {}
 
-      # 3. Send Ctrl+Enter and ENTER keystroke as guaranteed fallback
       [System.Windows.Forms.SendKeys]::SendWait("^{ENTER}");
       Start-Sleep -Milliseconds 100;
       [System.Windows.Forms.SendKeys]::SendWait("{ENTER}");
@@ -152,5 +219,6 @@ async function gitCommitAndPush(targetDir = process.cwd(), commitMsg = 'Auto upd
 module.exports = {
   focusAntigravityWindow,
   confirmAction,
+  selectGitHubAccount,
   gitCommitAndPush
 };

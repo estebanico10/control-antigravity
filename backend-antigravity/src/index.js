@@ -2,22 +2,23 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
-const { focusAntigravityWindow, confirmAction, gitCommitAndPush } = require('./windowManager');
+const { focusAntigravityWindow, confirmAction, selectGitHubAccount, gitCommitAndPush } = require('./windowManager');
 const { getAntigravityTelemetry } = require('./telemetryScanner');
 const { captureAntigravityScreen } = require('./screenCapture');
 const { scanAntigravityContext } = require('./contextScanner');
 const { injectTextToAntigravity } = require('./textInjector');
+const { injectImageToAntigravity } = require('./imageInjector');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Allows base64 image payloads
 
 // In-Memory State Backup (standalone local usage)
 let localState = {
   id: 1,
-  estado_actual: 'inactivo', // 'inactivo' | 'procesando' | 'requiere_confirmacion' | 'confirmado' | 'focus' | 'git_push'
+  estado_actual: 'inactivo',
   auto_approve: false,
   last_action: null,
   updated_at: new Date().toISOString()
@@ -42,7 +43,7 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 /**
  * Handle Remote State Changes & Trigger Physical Windows Automation
  */
-async function processStateTrigger(newState, source = 'local') {
+async function processStateTrigger(newState, source = 'local', extraPayload = {}) {
   console.log(`[StateTrigger] State changed to "${newState}" (Source: ${source})`);
 
   if (newState === 'confirmado' || newState === 'proceed' || newState === 'approve_plan') {
@@ -50,6 +51,11 @@ async function processStateTrigger(newState, source = 'local') {
     await focusAntigravityWindow();
     await confirmAction();
     updateState('procesando', { last_action: 'PROCEED_CONFIRMED' });
+  } else if (newState === 'select_github') {
+    const accName = extraPayload.account_name || 'estebanico10';
+    console.log(`[Automation] Selecting GitHub Account: ${accName}...`);
+    await selectGitHubAccount(accName);
+    updateState('procesando', { last_action: `GITHUB_ACC_SELECTED_${accName}` });
   } else if (newState === 'focus') {
     console.log('[Automation] Window focus requested!');
     await focusAntigravityWindow();
@@ -156,15 +162,27 @@ app.post('/api/inject-text', async (req, res) => {
   res.json(result);
 });
 
+app.post('/api/inject-image', async (req, res) => {
+  const { image } = req.body;
+  const result = await injectImageToAntigravity(image);
+  res.json(result);
+});
+
+app.post('/api/select-github-account', async (req, res) => {
+  const { account_name } = req.body;
+  const result = await selectGitHubAccount(account_name || 'estebanico10');
+  res.json(result);
+});
+
 app.post('/api/action', async (req, res) => {
-  const { action, auto_approve } = req.body;
+  const { action, auto_approve, account_name } = req.body;
 
   if (auto_approve !== undefined) {
     localState.auto_approve = Boolean(auto_approve);
   }
 
   if (action) {
-    await processStateTrigger(action, 'http_api');
+    await processStateTrigger(action, 'http_api', { account_name });
   } else {
     await updateState(localState.estado_actual);
   }
@@ -174,7 +192,7 @@ app.post('/api/action', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v2.0 running on http://localhost:${PORT}`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v2.5 running on http://localhost:${PORT}`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`====================================================`);
 });
