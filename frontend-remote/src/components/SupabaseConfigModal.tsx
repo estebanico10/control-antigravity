@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Save, RefreshCw, Server, Wifi } from 'lucide-react';
+import { X, Save, Server, Wifi } from 'lucide-react';
 import { saveConfig, getSavedConfig } from '../lib/supabase';
 
 interface SupabaseConfigModalProps {
@@ -14,19 +14,15 @@ export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({
   onConfigSaved,
 }) => {
   const currentConfig = getSavedConfig();
-  const [supabaseUrl, setSupabaseUrl] = useState(currentConfig.supabaseUrl);
-  const [supabaseKey, setSupabaseKey] = useState(currentConfig.supabaseAnonKey);
+  const [supabaseUrl, setSupabaseUrl] = useState(currentConfig.url);
+  const [supabaseKey, setSupabaseKey] = useState(currentConfig.key);
   const [localApiUrl, setLocalApiUrl] = useState(currentConfig.localApiUrl || 'http://192.168.1.18:3001');
 
   if (!isOpen) return null;
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    saveConfig({
-      supabaseUrl: supabaseUrl.trim(),
-      supabaseAnonKey: supabaseKey.trim(),
-      localApiUrl: localApiUrl.trim(),
-    });
+    saveConfig(supabaseUrl.trim(), supabaseKey.trim(), localApiUrl.trim());
     onConfigSaved();
     onClose();
   };
