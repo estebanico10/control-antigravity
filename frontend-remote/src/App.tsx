@@ -5,6 +5,7 @@ import { LoginModal } from './components/LoginModal';
 import { StatusHeader } from './components/StatusHeader';
 import { AdaptiveContextHero } from './components/AdaptiveContextHero';
 import { GitHubAccountSelector } from './components/GitHubAccountSelector';
+import { PredefinedPrompts } from './components/PredefinedPrompts';
 import { TelemetryCard } from './components/TelemetryCard';
 import { QuickActions } from './components/QuickActions';
 import { AITerminalFeed } from './components/AITerminalFeed';
@@ -205,6 +206,10 @@ export function App() {
 
         <PromptInputBar />
 
+        <PredefinedPrompts
+          onSelectPrompt={(p) => setLastActionStatus(`Prompt Enviado: ${p.slice(0, 25)}...`)}
+        />
+
         <AITerminalFeed latestAIMessage={context?.latest_ai_message || ''} />
 
         <QuickActions
@@ -219,7 +224,7 @@ export function App() {
 
         <footer className="text-center text-xs text-slate-500 pt-4 border-t border-slate-800/80 flex items-center justify-between">
           <span className="flex items-center gap-1">
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v2.5
+            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v3.0
           </span>
           <span>Desarrollado para @Estebanico10</span>
         </footer>
