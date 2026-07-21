@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cloud, Settings, ExternalLink, Wifi } from 'lucide-react';
+import { Settings, ExternalLink, Wifi } from 'lucide-react';
 
 interface NetworkAssistantAlertProps {
   isConnected: boolean;
