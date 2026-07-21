@@ -4,7 +4,17 @@ export type EstadoActual =
   | 'requiere_confirmacion' 
   | 'confirmado' 
   | 'focus' 
-  | 'git_push';
+  | 'git_push'
+  | 'proceed'
+  | 'approve_plan';
+
+export type ContextType = 
+  | 'PLAN_APPROVAL_NEEDED'
+  | 'PROCEED_REQUIRED'
+  | 'ERROR_DETECTED'
+  | 'WAITING_USER_INPUT'
+  | 'WORKING'
+  | 'IDLE';
 
 export interface ControlEstado {
   id: number;
@@ -22,5 +32,14 @@ export interface TelemetryData {
   last_active: string;
   seconds_until_reset: number;
   status: 'NORMAL' | 'LOW_CONTEXT';
+  updated_at?: string;
+}
+
+export interface AntigravityContext {
+  active_conversation_id?: string;
+  context_type: ContextType;
+  implementation_plan?: string;
+  walkthrough?: string;
+  latest_ai_message: string;
   updated_at?: string;
 }

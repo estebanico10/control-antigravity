@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSupabaseClient, getSavedConfig } from './lib/supabase';
-import { EstadoActual, ControlEstado, TelemetryData } from './types';
+import { EstadoActual, ControlEstado, TelemetryData, AntigravityContext } from './types';
 import { LoginModal } from './components/LoginModal';
 import { StatusHeader } from './components/StatusHeader';
-import { ConfirmationBanner } from './components/ConfirmationBanner';
+import { AdaptiveContextHero } from './components/AdaptiveContextHero';
 import { TelemetryCard } from './components/TelemetryCard';
 import { QuickActions } from './components/QuickActions';
+import { AITerminalFeed } from './components/AITerminalFeed';
+import { LiveScreenView } from './components/LiveScreenView';
+import { ImplementationPlanViewer } from './components/ImplementationPlanViewer';
+import { PromptInputBar } from './components/PromptInputBar';
 import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 import { Sparkles, Terminal } from 'lucide-react';
 
@@ -14,11 +18,14 @@ export function App() {
   const [estado, setEstado] = useState<EstadoActual>('inactivo');
   const [autoApprove, setAutoApprove] = useState<boolean>(false);
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
+  const [context, setContext] = useState<AntigravityContext | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(false);
+  const [isLiveScreenOpen, setIsLiveScreenOpen] = useState<boolean>(false);
+  const [isPlanViewerOpen, setIsPlanViewerOpen] = useState<boolean>(false);
   const [lastActionStatus, setLastActionStatus] = useState<string | null>(null);
 
-  // Initial Auth Check
+  // Auth Check
   useEffect(() => {
     const auth = localStorage.getItem('antigravity_authenticated');
     if (auth === 'true') {
@@ -28,7 +35,7 @@ export function App() {
 
   const config = getSavedConfig();
 
-  // Send action to local HTTP API fallback
+  // Local HTTP API Fallback Action
   const sendLocalApiAction = useCallback(async (action?: EstadoActual, nextAutoApprove?: boolean) => {
     try {
       const res = await fetch(`${config.localApiUrl}/api/action`, {
@@ -43,44 +50,33 @@ export function App() {
           setAutoApprove(data.state.auto_approve);
         }
       }
-    } catch (e) {
-      // Ignore network errors
-    }
+    } catch (e) {}
   }, [config.localApiUrl]);
 
-  // Main Realtime / Polling Sync
+  // Sync state via Supabase Realtime or local polling
   const initSync = useCallback(() => {
     const supabase = getSupabaseClient();
 
     if (supabase) {
       setIsConnected(true);
 
-      // Fetch initial estado
-      supabase
-        .from('control_estado')
-        .select('*')
-        .eq('id', 1)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setEstado(data.estado_actual);
-            setAutoApprove(data.auto_approve);
-          }
-        });
+      supabase.from('control_estado').select('*').eq('id', 1).single().then(({ data }) => {
+        if (data) {
+          setEstado(data.estado_actual);
+          setAutoApprove(data.auto_approve);
+        }
+      });
 
-      // Fetch initial telemetry
-      supabase
-        .from('antigravity_telemetry')
-        .select('*')
-        .eq('id', 1)
-        .single()
-        .then(({ data }) => {
-          if (data) setTelemetry(data);
-        });
+      supabase.from('antigravity_telemetry').select('*').eq('id', 1).single().then(({ data }) => {
+        if (data) setTelemetry(data);
+      });
 
-      // Subscribe to Realtime Postgres Changes
+      supabase.from('antigravity_context').select('*').eq('id', 1).single().then(({ data }) => {
+        if (data) setContext(data);
+      });
+
       const channel = supabase
-        .channel('antigravity_remote_app')
+        .channel('antigravity_remote_v2')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'control_estado' }, (payload) => {
           const newData = payload.new as ControlEstado;
           if (newData) {
@@ -96,6 +92,10 @@ export function App() {
           const newData = payload.new as TelemetryData;
           if (newData) setTelemetry(newData);
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'antigravity_context' }, (payload) => {
+          const newData = payload.new as AntigravityContext;
+          if (newData) setContext(newData);
+        })
         .subscribe();
 
       return () => {
@@ -103,7 +103,6 @@ export function App() {
       };
     } else {
       setIsConnected(false);
-      // Fallback: Poll local HTTP API every 3s
       const interval = setInterval(async () => {
         try {
           const res = await fetch(`${config.localApiUrl}/api/status`);
@@ -114,6 +113,7 @@ export function App() {
               setAutoApprove(data.state.auto_approve);
             }
             if (data.telemetry) setTelemetry(data.telemetry);
+            if (data.context) setContext(data.context);
             setIsConnected(true);
           }
         } catch (e) {
@@ -132,7 +132,6 @@ export function App() {
     }
   }, [isAuthenticated, initSync]);
 
-  // Handler Actions
   const handleUpdateEstado = async (newEstado: EstadoActual) => {
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -173,7 +172,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 md:p-8 flex flex-col items-center justify-start radial-bg selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 md:p-8 flex flex-col items-center justify-start radial-bg selection:bg-indigo-500 selection:text-white pb-20">
       <div className="w-full max-w-4xl">
         <StatusHeader
           estado={estado}
@@ -190,11 +189,18 @@ export function App() {
           </div>
         )}
 
-        <ConfirmationBanner
+        <AdaptiveContextHero
+          contextType={context?.context_type || 'IDLE'}
           estado={estado}
+          hasPlan={Boolean(context?.implementation_plan)}
           onConfirm={() => handleUpdateEstado('confirmado')}
-          onFocusWindow={() => handleUpdateEstado('focus')}
+          onOpenPlan={() => setIsPlanViewerOpen(true)}
+          onOpenLiveScreen={() => setIsLiveScreenOpen(true)}
         />
+
+        <PromptInputBar />
+
+        <AITerminalFeed latestAIMessage={context?.latest_ai_message || ''} />
 
         <QuickActions
           autoApprove={autoApprove}
@@ -208,11 +214,23 @@ export function App() {
 
         <footer className="text-center text-xs text-slate-500 pt-4 border-t border-slate-800/80 flex items-center justify-between">
           <span className="flex items-center gap-1">
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v1.0
+            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v2.0
           </span>
           <span>Desarrollado para @Estebanico10</span>
         </footer>
       </div>
+
+      <LiveScreenView
+        isOpen={isLiveScreenOpen}
+        onClose={() => setIsLiveScreenOpen(false)}
+      />
+
+      <ImplementationPlanViewer
+        isOpen={isPlanViewerOpen}
+        planMarkdown={context?.implementation_plan || null}
+        onClose={() => setIsPlanViewerOpen(false)}
+        onApprovePlan={() => handleUpdateEstado('confirmado')}
+      />
 
       <SupabaseConfigModal
         isOpen={isConfigOpen}

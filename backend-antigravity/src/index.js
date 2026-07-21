@@ -4,17 +4,20 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { focusAntigravityWindow, confirmAction, gitCommitAndPush } = require('./windowManager');
 const { getAntigravityTelemetry } = require('./telemetryScanner');
+const { captureAntigravityScreen } = require('./screenCapture');
+const { scanAntigravityContext } = require('./contextScanner');
+const { injectTextToAntigravity } = require('./textInjector');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// In-Memory State Backup (for standalone / direct local usage)
+// In-Memory State Backup (standalone local usage)
 let localState = {
   id: 1,
-  estado_actual: 'inactivo', // 'inactivo' | 'procesando' | 'requiere_confirmacion' | 'confirmado'
+  estado_actual: 'inactivo', // 'inactivo' | 'procesando' | 'requiere_confirmacion' | 'confirmado' | 'focus' | 'git_push'
   auto_approve: false,
   last_action: null,
   updated_at: new Date().toISOString()
@@ -33,7 +36,7 @@ if (SUPABASE_URL && SUPABASE_KEY) {
     console.warn('[Supabase] Could not initialize client:', err.message);
   }
 } else {
-  console.log('[Supabase] Running in local standalone mode. Set SUPABASE_URL and SUPABASE_KEY in .env for Cloud Realtime.');
+  console.log('[Supabase] Running in local standalone mode.');
 }
 
 /**
@@ -42,13 +45,11 @@ if (SUPABASE_URL && SUPABASE_KEY) {
 async function processStateTrigger(newState, source = 'local') {
   console.log(`[StateTrigger] State changed to "${newState}" (Source: ${source})`);
 
-  if (newState === 'confirmado') {
-    console.log('[Automation] Confirm action requested! Focusing window & sending ENTER...');
+  if (newState === 'confirmado' || newState === 'proceed' || newState === 'approve_plan') {
+    console.log('[Automation] Confirm/Proceed action requested! Focusing window & clicking Proceed...');
     await focusAntigravityWindow();
     await confirmAction();
-    
-    // Reset state to processing
-    updateState('procesando', { last_action: 'CONFIRMED' });
+    updateState('procesando', { last_action: 'PROCEED_CONFIRMED' });
   } else if (newState === 'focus') {
     console.log('[Automation] Window focus requested!');
     await focusAntigravityWindow();
@@ -103,14 +104,13 @@ if (supabase) {
         processStateTrigger(payload.new.estado_actual, 'supabase_realtime');
       }
     })
-    .subscribe((status) => {
-      console.log('[Supabase Realtime Status]', status);
-    });
+    .subscribe();
 }
 
-// Interval: Telemetry & Log Monitor (every 5s)
+// Interval: Sync Telemetry & Context Scanner (every 5s)
 setInterval(async () => {
   const telemetry = getAntigravityTelemetry();
+  const context = scanAntigravityContext();
 
   if (supabase) {
     try {
@@ -119,19 +119,41 @@ setInterval(async () => {
         ...telemetry,
         updated_at: new Date().toISOString()
       });
-    } catch (err) {
-      // Ignore transient errors
-    }
+
+      await supabase.from('antigravity_context').upsert({
+        id: 1,
+        ...context,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {}
   }
 }, 5000);
 
 // Local REST API Endpoints
 app.get('/api/status', (req, res) => {
   const telemetry = getAntigravityTelemetry();
+  const context = scanAntigravityContext();
   res.json({
     state: localState,
-    telemetry
+    telemetry,
+    context
   });
+});
+
+app.get('/api/context', (req, res) => {
+  const context = scanAntigravityContext();
+  res.json(context);
+});
+
+app.get('/api/screenshot', async (req, res) => {
+  const screenshotResult = await captureAntigravityScreen();
+  res.json(screenshotResult);
+});
+
+app.post('/api/inject-text', async (req, res) => {
+  const { text } = req.body;
+  const result = await injectTextToAntigravity(text);
+  res.json(result);
 });
 
 app.post('/api/action', async (req, res) => {
@@ -152,7 +174,7 @@ app.post('/api/action', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon running on http://localhost:${PORT}`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v2.0 running on http://localhost:${PORT}`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`====================================================`);
 });
