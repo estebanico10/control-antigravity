@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const os = require('os');
+const localtunnel = require('localtunnel');
 const { createClient } = require('@supabase/supabase-js');
 const { focusAntigravityWindow, confirmAction, selectGitHubAccount, gitCommitAndPush } = require('./windowManager');
 const { getAntigravityTelemetry } = require('./telemetryScanner');
@@ -49,11 +50,13 @@ function getLocalIpAddress() {
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
+        if (!iface.address.startsWith('172.')) {
+          return iface.address;
+        }
       }
     }
   }
-  return 'localhost';
+  return '192.168.1.18';
 }
 
 /**
@@ -208,11 +211,29 @@ app.post('/api/action', async (req, res) => {
 
 const localIp = getLocalIpAddress();
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v4.5 running!`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v5.0 running!`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`----------------------------------------------------`);
-  console.log(`📱 IP PARA TU CELULAR (Wi-Fi Local): http://${localIp}:${PORT}`);
+  console.log(`📶 Wi-Fi IP Local: http://${localIp}:${PORT}`);
+
+  // Start automatic cloud tunnel
+  try {
+    const tunnel = await localtunnel({
+      port: PORT,
+      subdomain: `antigravity-${Math.floor(1000 + Math.random() * 9000)}`
+    });
+
+    console.log(`🌐 TÚNEL MUNDIAL AUTOMÁTICO: ${tunnel.url}`);
+    console.log(`   (Usa este enlace para conectarte desde 4G/5G en cualquier lugar)`);
+
+    tunnel.on('close', () => {
+      console.log('[Tunnel] Cloud tunnel closed.');
+    });
+  } catch (err) {
+    console.warn('[Tunnel] Could not start auto tunnel:', err.message);
+  }
+
   console.log(`====================================================`);
 });
