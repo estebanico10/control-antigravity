@@ -211,29 +211,26 @@ app.post('/api/action', async (req, res) => {
 
 const localIp = getLocalIpAddress();
 
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v5.0 running!`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v5.5 running!`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`----------------------------------------------------`);
   console.log(`📶 Wi-Fi IP Local: http://${localIp}:${PORT}`);
 
-  // Start automatic cloud tunnel
-  try {
-    const tunnel = await localtunnel({
-      port: PORT,
-      subdomain: `antigravity-${Math.floor(1000 + Math.random() * 9000)}`
+  // Non-blocking background tunnel start with 4s timeout
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Tunnel connection timeout')), 4000)
+  );
+
+  Promise.race([localtunnel({ port: PORT }), timeoutPromise])
+    .then((tunnel) => {
+      console.log(`🌐 TÚNEL MUNDIAL AUTOMÁTICO: ${tunnel.url}`);
+      console.log(`   (Pega este enlace en la app de tu celular para conectarte desde 4G/5G)`);
+      console.log(`====================================================`);
+    })
+    .catch(() => {
+      console.log(`🌐 Túnel local listo para Wi-Fi en http://${localIp}:${PORT}`);
+      console.log(`====================================================`);
     });
-
-    console.log(`🌐 TÚNEL MUNDIAL AUTOMÁTICO: ${tunnel.url}`);
-    console.log(`   (Usa este enlace para conectarte desde 4G/5G en cualquier lugar)`);
-
-    tunnel.on('close', () => {
-      console.log('[Tunnel] Cloud tunnel closed.');
-    });
-  } catch (err) {
-    console.warn('[Tunnel] Could not start auto tunnel:', err.message);
-  }
-
-  console.log(`====================================================`);
 });
