@@ -13,10 +13,13 @@ import { LiveScreenView } from './components/LiveScreenView';
 import { ImplementationPlanViewer } from './components/ImplementationPlanViewer';
 import { PromptInputBar } from './components/PromptInputBar';
 import { SupabaseConfigModal } from './components/SupabaseConfigModal';
+import { BottomNavBar, TabType } from './components/BottomNavBar';
+import { NetworkAssistantAlert } from './components/NetworkAssistantAlert';
 import { Sparkles, Terminal } from 'lucide-react';
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<TabType>('control');
   const [estado, setEstado] = useState<EstadoActual>('inactivo');
   const [autoApprove, setAutoApprove] = useState<boolean>(false);
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
@@ -173,8 +176,11 @@ export function App() {
     return <LoginModal onLoginSuccess={() => setIsAuthenticated(true)} />;
   }
 
+  const isActionRequired = estado === 'requiere_confirmacion' || context?.context_type === 'PROCEED_REQUIRED';
+  const hasPlan = Boolean(context?.implementation_plan);
+
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 md:p-8 flex flex-col items-center justify-start radial-bg selection:bg-indigo-500 selection:text-white pb-20">
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-4 md:p-8 flex flex-col items-center justify-start radial-bg selection:bg-indigo-500 selection:text-white pb-24">
       <div className="w-full max-w-4xl">
         <StatusHeader
           estado={estado}
@@ -191,44 +197,108 @@ export function App() {
           </div>
         )}
 
-        <AdaptiveContextHero
-          contextType={context?.context_type || 'IDLE'}
-          estado={estado}
-          hasPlan={Boolean(context?.implementation_plan)}
-          onConfirm={() => handleUpdateEstado('confirmado')}
-          onOpenPlan={() => setIsPlanViewerOpen(true)}
-          onOpenLiveScreen={() => setIsLiveScreenOpen(true)}
+        <NetworkAssistantAlert
+          isConnected={isConnected}
+          onOpenSettings={() => setIsConfigOpen(true)}
         />
 
-        <GitHubAccountSelector
-          onAccountSelected={(acc) => setLastActionStatus(`Cuenta GitHub Elegida: ${acc}`)}
-        />
+        {/* Tab 1: Control (Main Dashboard) */}
+        {(activeTab === 'control') && (
+          <div className="space-y-6">
+            <AdaptiveContextHero
+              contextType={context?.context_type || 'IDLE'}
+              estado={estado}
+              hasPlan={hasPlan}
+              onConfirm={() => handleUpdateEstado('confirmado')}
+              onOpenPlan={() => setIsPlanViewerOpen(true)}
+              onOpenLiveScreen={() => setIsLiveScreenOpen(true)}
+            />
 
-        <PromptInputBar />
+            <GitHubAccountSelector
+              onAccountSelected={(acc) => setLastActionStatus(`Cuenta GitHub Elegida: ${acc}`)}
+            />
 
-        <PredefinedPrompts
-          onSelectPrompt={(p) => setLastActionStatus(`Prompt Enviado: ${p.slice(0, 25)}...`)}
-        />
+            <QuickActions
+              autoApprove={autoApprove}
+              onToggleAutoApprove={handleToggleAutoApprove}
+              onSendConfirm={() => handleUpdateEstado('confirmado')}
+              onGitPush={() => handleUpdateEstado('git_push')}
+              onFocusWindow={() => handleUpdateEstado('focus')}
+            />
 
-        <AITerminalFeed latestAIMessage={context?.latest_ai_message || ''} />
+            <TelemetryCard telemetry={telemetry} />
+          </div>
+        )}
 
-        <QuickActions
-          autoApprove={autoApprove}
-          onToggleAutoApprove={handleToggleAutoApprove}
-          onSendConfirm={() => handleUpdateEstado('confirmado')}
-          onGitPush={() => handleUpdateEstado('git_push')}
-          onFocusWindow={() => handleUpdateEstado('focus')}
-        />
+        {/* Tab 2: Pantalla PC */}
+        {(activeTab === 'screen') && (
+          <div className="space-y-6">
+            <div className="p-4 glass-panel rounded-3xl border-indigo-500/20 text-center">
+              <h3 className="text-lg font-bold text-white mb-2">Monitor de PC en Vivo</h3>
+              <p className="text-xs text-slate-400 mb-4">Captura directa de la pantalla de Antigravity IDE</p>
+              <button
+                onClick={() => setIsLiveScreenOpen(true)}
+                className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30"
+              >
+                Abrir Captura a Pantalla Completa 📸
+              </button>
+            </div>
+          </div>
+        )}
 
-        <TelemetryCard telemetry={telemetry} />
+        {/* Tab 3: Plan Maestro */}
+        {(activeTab === 'plan') && (
+          <div className="space-y-6">
+            <div className="p-4 glass-panel rounded-3xl border-indigo-500/20">
+              <h3 className="text-lg font-bold text-white mb-2">Plan de Implementación Activo</h3>
+              <div className="bg-[#070a12] p-4 rounded-2xl border border-slate-800 text-xs font-mono text-slate-300 max-h-96 overflow-y-auto whitespace-pre-wrap">
+                {context?.implementation_plan || 'No hay un plan activo en este momento.'}
+              </div>
+            </div>
+          </div>
+        )}
 
-        <footer className="text-center text-xs text-slate-500 pt-4 border-t border-slate-800/80 flex items-center justify-between">
+        {/* Tab 4: Prompts & Chat */}
+        {(activeTab === 'prompts') && (
+          <div className="space-y-6">
+            <PromptInputBar />
+            <PredefinedPrompts
+              onSelectPrompt={(p) => setLastActionStatus(`Prompt Enviado: ${p.slice(0, 25)}...`)}
+            />
+            <AITerminalFeed latestAIMessage={context?.latest_ai_message || ''} />
+          </div>
+        )}
+
+        {/* Tab 5: Settings */}
+        {(activeTab === 'settings') && (
+          <div className="space-y-6">
+            <div className="p-6 glass-panel rounded-3xl border-indigo-500/20 text-center">
+              <h3 className="text-lg font-bold text-white mb-2">Configuración de Conexión</h3>
+              <p className="text-xs text-slate-400 mb-4">Ajustes de Supabase Realtime y Backend Local</p>
+              <button
+                onClick={() => setIsConfigOpen(true)}
+                className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30"
+              >
+                Abrir Panel de Credenciales
+              </button>
+            </div>
+          </div>
+        )}
+
+        <footer className="text-center text-xs text-slate-500 pt-6 border-t border-slate-800/80 flex items-center justify-between mt-8">
           <span className="flex items-center gap-1">
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v3.0
+            <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Antigravity Remote Companion v3.5
           </span>
           <span>Desarrollado para @Estebanico10</span>
         </footer>
       </div>
+
+      <BottomNavBar
+        activeTab={activeTab}
+        onTabChange={(t) => setActiveTab(t)}
+        hasPlan={hasPlan}
+        isActionRequired={isActionRequired}
+      />
 
       <LiveScreenView
         isOpen={isLiveScreenOpen}
