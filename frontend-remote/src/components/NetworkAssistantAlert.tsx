@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Cloud, Settings, ExternalLink } from 'lucide-react';
+import { Cloud, Settings, ExternalLink } from 'lucide-react';
 
 interface NetworkAssistantAlertProps {
   isConnected: boolean;
