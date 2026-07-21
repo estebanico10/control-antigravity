@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const os = require('os');
 const localtunnel = require('localtunnel');
 const { createClient } = require('@supabase/supabase-js');
@@ -16,6 +17,10 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Serve frontend static build directly to avoid HTTPS Mixed Content block on mobile devices
+const frontendDist = path.join(__dirname, '../../frontend-remote/dist');
+app.use(express.static(frontendDist));
 
 // In-Memory State Backup (standalone local usage)
 let localState = {
@@ -209,28 +214,19 @@ app.post('/api/action', async (req, res) => {
   res.json({ success: true, state: localState });
 });
 
+// SPA Fallback for Direct Mobile Web Access
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendDist, 'index.html'));
+});
+
 const localIp = getLocalIpAddress();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v5.5 running!`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v6.0 running!`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`----------------------------------------------------`);
-  console.log(`📶 Wi-Fi IP Local: http://${localIp}:${PORT}`);
-
-  // Non-blocking background tunnel start with 4s timeout
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Tunnel connection timeout')), 4000)
-  );
-
-  Promise.race([localtunnel({ port: PORT }), timeoutPromise])
-    .then((tunnel) => {
-      console.log(`🌐 TÚNEL MUNDIAL AUTOMÁTICO: ${tunnel.url}`);
-      console.log(`   (Pega este enlace en la app de tu celular para conectarte desde 4G/5G)`);
-      console.log(`====================================================`);
-    })
-    .catch(() => {
-      console.log(`🌐 Túnel local listo para Wi-Fi en http://${localIp}:${PORT}`);
-      console.log(`====================================================`);
-    });
+  console.log(`📲 ABRE ESTE ENLACE DIRECTO EN TU CELULAR (Wi-Fi):`);
+  console.log(`👉 http://${localIp}:${PORT}`);
+  console.log(`====================================================`);
 });
