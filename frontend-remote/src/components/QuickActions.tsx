@@ -1,5 +1,5 @@
 import React from 'react';
-import { GitCommit, Monitor, CheckCircle, Zap, MousePointerClick } from 'lucide-react';
+import { GitCommit, Monitor, Zap, MousePointerClick } from 'lucide-react';
 
 interface QuickActionsProps {
   autoApprove: boolean;
@@ -91,7 +91,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
               {autoApprove ? 'Auto-Aprobación ACTIVA' : 'Confirmación manual activa'}
             </span>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   );
