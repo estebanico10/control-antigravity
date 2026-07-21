@@ -16,8 +16,8 @@ async function runPowerShellScript(scriptText) {
 }
 
 /**
- * Captures a screenshot of the active Antigravity IDE window (or primary screen fallback)
- * and returns a JPEG base64 string.
+ * Captures a cropped screenshot of the active target Antigravity IDE project window,
+ * ignoring the daemon window itself.
  */
 async function captureAntigravityScreen() {
   const tempImgPath = path.join(os.tmpdir(), `antigravity_screen_${Date.now()}.jpg`).replace(/\\/g, '/');
@@ -26,7 +26,21 @@ async function captureAntigravityScreen() {
     Add-Type -AssemblyName System.Windows.Forms;
     Add-Type -AssemblyName System.Drawing;
 
+    $signature = @'
+      [DllImport("user32.dll")]
+      public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+      public struct RECT {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+      }
+'@
+    $win32 = Add-Type -MemberDefinition $signature -Name "Win32Utils" -Namespace "Win32" -PassThru;
+
     $wshell = New-Object -ComObject wscript.shell;
+    
+    # 1. Target active work project window, ignoring Control Antigravity daemon window
     $processes = Get-Process | Where-Object { 
       ($_.MainWindowTitle -like '*Antigravity*' -or $_.MainWindowTitle -like '*Visual Studio Code*' -or $_.MainWindowTitle -like '*Cursor*') -and 
       ($_.MainWindowTitle -notlike '*Control Antigravity*')
@@ -36,24 +50,41 @@ async function captureAntigravityScreen() {
       $processes = Get-Process | Where-Object { $_.MainWindowTitle -like '*Antigravity*' };
     }
 
-    if ($processes) {
-      $wshell.AppActivate($processes[0].Id);
-      Start-Sleep -Milliseconds 150;
-    }
+    if ($processes -and $processes[0].MainWindowHandle -ne [IntPtr]::Zero) {
+      $targetProc = $processes[0];
+      $wshell.AppActivate($targetProc.Id);
+      Start-Sleep -Milliseconds 200;
 
-    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds;
-    $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height);
-    $graphics = [System.Drawing.Graphics]::FromImage($bmp);
-    $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size);
-    
-    $bmp.Save('${tempImgPath}', [System.Drawing.Imaging.ImageFormat]::Jpeg);
-    $graphics.Dispose();
-    $bmp.Dispose();
-    Write-Output "SCREENSHOT_SAVED";
+      $rect = New-Object Win32.Win32Utils+RECT;
+      $win32::GetWindowRect($targetProc.MainWindowHandle, [ref]$rect);
+
+      $width = [Math]::Max(100, $rect.Right - $rect.Left);
+      $height = [Math]::Max(100, $rect.Bottom - $rect.Top);
+
+      $bmp = New-Object System.Drawing.Bitmap($width, $height);
+      $graphics = [System.Drawing.Graphics]::FromImage($bmp);
+      $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, (New-Object System.Drawing.Size($width, $height)));
+
+      $bmp.Save('${tempImgPath}', [System.Drawing.Imaging.ImageFormat]::Jpeg);
+      $graphics.Dispose();
+      $bmp.Dispose();
+      Write-Output "CROPPED_WINDOW_SCREENSHOT_SAVED";
+    } else {
+      # Fallback to full screen if no specific window found
+      $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds;
+      $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height);
+      $graphics = [System.Drawing.Graphics]::FromImage($bmp);
+      $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size);
+      $bmp.Save('${tempImgPath}', [System.Drawing.Imaging.ImageFormat]::Jpeg);
+      $graphics.Dispose();
+      $bmp.Dispose();
+      Write-Output "FULLSCREEN_FALLBACK_SAVED";
+    }
   `;
 
   try {
-    await runPowerShellScript(psScript);
+    const stdout = await runPowerShellScript(psScript);
+    console.log('[ScreenCapture]', stdout);
 
     if (fs.existsSync(tempImgPath)) {
       const imgBuffer = fs.readFileSync(tempImgPath);
