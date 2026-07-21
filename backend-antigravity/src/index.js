@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const os = require('os');
 const qrcode = require('qrcode-terminal');
+const { startTunnel } = require('untun');
 const { createClient } = require('@supabase/supabase-js');
 const { focusAntigravityWindow, confirmAction, selectGitHubAccount, gitCommitAndPush } = require('./windowManager');
 const { getAntigravityTelemetry } = require('./telemetryScanner');
@@ -220,15 +221,25 @@ app.get('*', (req, res) => {
 });
 
 const localIp = getLocalIpAddress();
-const mobileAppUrl = `http://${localIp}:${PORT}`;
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`====================================================`);
-  console.log(`🤖 Antigravity Remote Backend Daemon v7.0 running!`);
+  console.log(`🤖 Antigravity Remote Backend Daemon v8.0 running!`);
   console.log(`🔑 Default Login User: Estebanico10`);
   console.log(`----------------------------------------------------`);
-  console.log(`📲 ESCANEA ESTE CÓDIGO QR CON LA CÁMARA DE TU CELULAR:`);
-  qrcode.generate(mobileAppUrl, { small: true });
-  console.log(`👉 ENLACE DIRECTO: ${mobileAppUrl}`);
+
+  try {
+    const tunnel = await startTunnel({ port: PORT });
+    const cloudUrl = await tunnel.getURL();
+
+    console.log(`📲 ESCANEA ESTE CÓDIGO QR CON LA CÁMARA DE TU CELULAR:`);
+    qrcode.generate(cloudUrl, { small: true });
+    console.log(`🌐 TÚNEL CLOUDFLARE HTTPS MUNDIAL: ${cloudUrl}`);
+    console.log(`   (Abre esta URL en tu celular desde 4G, 5G o cualquier Wi-Fi)`);
+  } catch (err) {
+    console.warn('[Tunnel] Could not start Cloudflare tunnel:', err.message);
+    console.log(`📶 IP Wi-Fi Local: http://${localIp}:${PORT}`);
+  }
+
   console.log(`====================================================`);
 });
