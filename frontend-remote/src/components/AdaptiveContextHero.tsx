@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, FileText, CheckCircle2, Zap, Sparkles, Terminal, Camera } from 'lucide-react';
+import { AlertCircle, FileText, CheckCircle2, Zap, Sparkles, Camera } from 'lucide-react';
 import { ContextType, EstadoActual } from '../types';
 
 interface AdaptiveContextHeroProps {
